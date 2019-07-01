@@ -73,7 +73,7 @@ def clean_update_item_string(string):
     return str(string.replace("(", "").replace(")", ""))
 
 
-def fetch_router_data():
+def fetch_router_data(): # pragma: no cover
     ssh = paramiko.SSHClient()
     ssh.load_system_host_keys()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -95,7 +95,7 @@ def update():
     write_update(parse_update(fetch_router_data()))
 
 
-def write_update(parsed_data):
+def write_update(parsed_data): # pragma: no cover
     connection = pymysql.connect(host=get_credentials()[SAIB_ADDRESS_KEY_NAME],
                                  user=SAIB_USER_NAME,
                                  password=get_credentials()[SAIB_KEY_NAME],

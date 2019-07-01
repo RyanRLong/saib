@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import os
 
 import pytest
 
-from saib.skeleton import parse_update, parse_update_entry
+import saib.skeleton as saib
 
 __author__ = "Ryan Long"
 __copyright__ = "Ryan Long"
@@ -34,7 +35,7 @@ def data():
 
 
 def test_parse_update_WhenCalled_ReturnsListOfDictsUpdatedDevice(data):
-    result = parse_update(data)
+    result = saib.parse_update(data)
     assert result == [{'name': 'Ryans-iPad.echoes.net', 'ip': '192.168.0.117',
                        'mac_address': '02:0f:b5:69:90:a8'},
                       {'name': '?', 'ip': '192.168.0.101',
@@ -81,7 +82,15 @@ def test_parse_update_WhenCalled_ReturnsListOfDictsUpdatedDevice(data):
 
 def test_parse_update_entry_WhenCalledWithValidEntry_ReturnsValidTypeAndData():
     entry = "Ekko.echoes.net (192.168.0.115) at d4:25:8b:fa:02:80 [ether]  on br0"
-    result = parse_update_entry(entry)
+    result = saib.parse_update_entry(entry)
     assert result["name"] == "Ekko.echoes.net"
     assert result["ip"] == "192.168.0.115"
     assert result["mac_address"] == "d4:25:8b:fa:02:80"
+
+def test_get_credentials_WhenCalled_ReturnsTheCorrectEnvironmentVariableValues(monkeypatch):
+    monkeypatch.setattr(os, "getenv", lambda x: "Value")
+    for entry in saib.get_credentials().values():
+        assert entry == "Value"
+
+
+
