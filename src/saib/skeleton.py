@@ -28,14 +28,21 @@ import pymysql.cursors
 
 from saib import __version__
 
-SAIB_ADDRESS_KEY_NAME = "Saib_Address"
-SAIB_USER_NAME = 'saib'
-SAIB_KEY_NAME = "saib"
+print(os.environ)
 
-CEREBRO_SSH_PORT = 22
-CEREBRO_SSH_ADDRESS = "192.168.0.1"
-CEREBRO_SSH_USER_NAME = "root"
-CEREBRO_SSH_KEY_NAME = "Cerebro_SSH"
+SAIB = {
+    'username': os.getenv('SAIB_USERNAME', 'test'),
+    'password': os.getenv('SAIB_PASSWORD'),
+    'database': 'saib',
+    'address': '172.104.17.17',
+}
+
+CEREBRO = {
+    'username': os.getenv('CEREBRO_USERNAME'),
+    'password': os.getenv('CEREBRO_PASSWORD'),
+    'port'    : 22,
+    'address' : '192.168.0.1',
+}
 
 __author__ = "Ryan Long"
 __copyright__ = "Ryan Long"
@@ -74,32 +81,24 @@ def clean_update_item_string(string):
 
 
 def fetch_router_data(): # pragma: no cover
+    print(SAIB)
+    print(CEREBRO)
     ssh = paramiko.SSHClient()
     ssh.load_system_host_keys()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(CEREBRO_SSH_ADDRESS, CEREBRO_SSH_PORT, CEREBRO_SSH_USER_NAME,
-                get_credentials()[CEREBRO_SSH_KEY_NAME])
+    ssh.connect(CEREBRO['address'], CEREBRO['port'], CEREBRO['username'], CEREBRO['password'])
     (ssh_stdin, ssh_stdout, ssh_stderr) = ssh.exec_command("arp -a")
     return [entry for entry in ssh_stdout]
-
-
-def get_credentials():
-    return {
-        CEREBRO_SSH_KEY_NAME: os.getenv(CEREBRO_SSH_KEY_NAME),
-        SAIB_KEY_NAME: os.getenv(SAIB_KEY_NAME),
-        SAIB_ADDRESS_KEY_NAME: os.getenv(SAIB_ADDRESS_KEY_NAME)
-    }
-
 
 def update():
     write_update(parse_update(fetch_router_data()))
 
 
 def write_update(parsed_data): # pragma: no cover
-    connection = pymysql.connect(host=get_credentials()[SAIB_ADDRESS_KEY_NAME],
-                                 user=SAIB_USER_NAME,
-                                 password=get_credentials()[SAIB_KEY_NAME],
-                                 db=SAIB_USER_NAME,
+    connection = pymysql.connect(host=SAIB['address'],
+                                 user=SAIB['username'],
+                                 password=SAIB['password'],
+                                 db=SAIB['database'],
                                  charset='utf8mb4',
                                  cursorclass=pymysql.cursors.DictCursor)
     try:
