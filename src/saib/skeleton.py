@@ -17,8 +17,8 @@ Note: This skeleton file can be safely removed if not needed!
 """
 
 import argparse
+import configparser
 import logging
-import os
 import re
 import sys
 
@@ -28,21 +28,27 @@ import pymysql.cursors
 
 from saib import __version__
 
-print(os.environ)
+config = configparser.ConfigParser()
+config.read("./config")
 
 SAIB = {
-    'username': os.getenv('SAIB_USERNAME', 'test'),
-    'password': os.getenv('SAIB_PASSWORD'),
+    'username': config['saib']['username'],
+    'password': config['saib']['password'],
     'database': 'saib',
     'address': '172.104.17.17',
 }
 
 CEREBRO = {
-    'username': os.getenv('CEREBRO_USERNAME'),
-    'password': os.getenv('CEREBRO_PASSWORD'),
-    'port'    : 22,
-    'address' : '192.168.0.1',
+    'username': config['cerebro']['username'],
+    'password': config['cerebro']['password'],
+    'port': 22,
+    'address': '192.168.0.1',
 }
+
+print(CEREBRO)
+print(SAIB)
+
+exit()
 
 __author__ = "Ryan Long"
 __copyright__ = "Ryan Long"
@@ -51,24 +57,24 @@ __license__ = "mit"
 _logger = logging.getLogger(__name__)
 
 
-def parse_update(update):
+def parse_update(update_data):
     result = []
-    for entry in update:
+    for entry in update_data:
         result.append(parse_update_entry(entry))
     return result
 
 
 def parse_update_entry(entry):
-    map = {
+    entry_map = {
         "name": 0,
         "ip": 1,
         "mac": 3,
     }
 
     data = re.split(r'\s', entry.strip())
-    name = clean_update_item_string(data[map["name"]])
-    ip = clean_update_item_string(data[map["ip"]])
-    mac_address = clean_update_item_string(data[map["mac"]])
+    name = clean_update_item_string(data[entry_map["name"]])
+    ip = clean_update_item_string(data[entry_map["ip"]])
+    mac_address = clean_update_item_string(data[entry_map["mac"]])
     return {
         "name": name,
         "ip": ip,
@@ -80,21 +86,21 @@ def clean_update_item_string(string):
     return str(string.replace("(", "").replace(")", ""))
 
 
-def fetch_router_data(): # pragma: no cover
-    print(SAIB)
-    print(CEREBRO)
+def fetch_router_data():  # pragma: no cover
     ssh = paramiko.SSHClient()
     ssh.load_system_host_keys()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(CEREBRO['address'], CEREBRO['port'], CEREBRO['username'], CEREBRO['password'])
+    ssh.connect(CEREBRO['address'], CEREBRO['port'], CEREBRO['username'],
+                CEREBRO['password'])
     (ssh_stdin, ssh_stdout, ssh_stderr) = ssh.exec_command("arp -a")
     return [entry for entry in ssh_stdout]
+
 
 def update():
     write_update(parse_update(fetch_router_data()))
 
 
-def write_update(parsed_data): # pragma: no cover
+def write_update(parsed_data):  # pragma: no cover
     connection = pymysql.connect(host=SAIB['address'],
                                  user=SAIB['username'],
                                  password=SAIB['password'],
@@ -104,7 +110,9 @@ def write_update(parsed_data): # pragma: no cover
     try:
         with connection.cursor() as cursor:
             for item in parsed_data:
-                sql = "INSERT INTO `log_in_range` (`ip`, `mac_address`, `name`) VALUES (%s, %s, %s)"
+                sql = '''INSERT INTO `log_in_range`
+                 (`ip`, `mac_address`, `name`) 
+                 VALUES (%s, %s, %s)'''
                 cursor.execute(sql,
                                (item["ip"], item["mac_address"], item["name"]))
                 connection.commit()
