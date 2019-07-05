@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import os
 
 import pytest
 
@@ -87,10 +86,6 @@ def test_parse_update_entry_WhenCalledWithValidEntry_ReturnsValidTypeAndData():
     assert result["ip"] == "192.168.0.115"
     assert result["mac_address"] == "d4:25:8b:fa:02:80"
 
-def test_get_credentials_WhenCalled_ReturnsTheCorrectEnvironmentVariableValues(monkeypatch):
-    monkeypatch.setattr(os, "getenv", lambda x: "Value")
-    for entry in saib.get_credentials().values():
-        assert entry == "Value"
 
 
 
