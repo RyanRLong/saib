@@ -31,24 +31,21 @@ from saib import __version__
 config = configparser.ConfigParser()
 config.read("./config")
 
-SAIB = {
-    'username': config['saib']['username'],
-    'password': config['saib']['password'],
-    'database': 'saib',
-    'address': '172.104.17.17',
+def getSaibData():
+    return {
+        'username': config['saib']['username'],
+        'password': config['saib']['password'],
+        'database': 'saib',
+        'address': '172.104.17.17',
 }
 
-CEREBRO = {
-    'username': config['cerebro']['username'],
-    'password': config['cerebro']['password'],
-    'port': 22,
-    'address': '192.168.0.1',
+def getCerebroData():
+    return {
+        'username': config['cerebro']['username'],
+        'password': config['cerebro']['password'],
+        'port': 22,
+        'address': '192.168.0.1',
 }
-
-print(CEREBRO)
-print(SAIB)
-
-exit()
 
 __author__ = "Ryan Long"
 __copyright__ = "Ryan Long"
@@ -87,6 +84,7 @@ def clean_update_item_string(string):
 
 
 def fetch_router_data():  # pragma: no cover
+    CEREBRO = getCerebroData()
     ssh = paramiko.SSHClient()
     ssh.load_system_host_keys()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -101,6 +99,7 @@ def update():
 
 
 def write_update(parsed_data):  # pragma: no cover
+    SAIB = getSaibData()
     connection = pymysql.connect(host=SAIB['address'],
                                  user=SAIB['username'],
                                  password=SAIB['password'],
