@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
+//TODO This
 This is a skeleton file that can serve as a starting point for a Python
 console script. To run this script uncomment the following lines in the
 [options.entry_points] section in setup.cfg:
@@ -31,22 +32,6 @@ from saib import __version__
 config = configparser.ConfigParser()
 config.read("./config")
 
-def getSaibData():
-    return {
-        'username': config['saib']['username'],
-        'password': config['saib']['password'],
-        'database': 'saib',
-        'address': '172.104.17.17',
-}
-
-def getCerebroData():
-    return {
-        'username': config['cerebro']['username'],
-        'password': config['cerebro']['password'],
-        'port': 22,
-        'address': '192.168.0.1',
-}
-
 __author__ = "Ryan Long"
 __copyright__ = "Ryan Long"
 __license__ = "mit"
@@ -54,7 +39,48 @@ __license__ = "mit"
 _logger = logging.getLogger(__name__)
 
 
+def get_saib_data():
+    """
+    Fetches saib login credential locally and from the config file and returns
+    a dict containing those values.
+
+    Returns:
+        dict(username, password, database, address): Saib login credentials
+    """
+    return {
+        'username': config['saib']['username'],
+        'password': config['saib']['password'],
+        'database': 'saib',
+        'address': '172.104.17.17',
+    }
+
+
+def get_cerebro_data():
+    """
+        Fetches cerebro login credential locally and from the config file and returns
+        a dict containing those values.
+
+        Returns:
+            dict(username, password, port, address): Cerebro login credentials
+        """
+    return {
+        'username': config['cerebro']['username'],
+        'password': config['cerebro']['password'],
+        'port': 22,
+        'address': '192.168.0.1',
+    }
+
 def parse_update(update_data):
+    """
+    Parses a full dump of the updated login  data
+
+    Args:
+        update_data (list[str]): data
+
+    Returns:
+        list[str]: data parsed ready for database entry
+
+    """
     result = []
     for entry in update_data:
         result.append(parse_update_entry(entry))
@@ -62,6 +88,15 @@ def parse_update(update_data):
 
 
 def parse_update_entry(entry):
+    """
+    Parses an entry from the login update dump
+
+    Args:
+        entry(string): data as name mac and ip
+
+    Returns:
+        dict(name, ip, mac): a parsed entry
+    """
     entry_map = {
         "name": 0,
         "ip": 1,
@@ -80,32 +115,59 @@ def parse_update_entry(entry):
 
 
 def clean_update_item_string(string):
+    """
+    Removes "(" and ")" parentheses from a string
+
+    Args:
+        string(str): entry
+
+    Returns:
+        str: string with parens removed
+    """
     return str(string.replace("(", "").replace(")", ""))
 
 
 def fetch_router_data():  # pragma: no cover
-    CEREBRO = getCerebroData()
+    """
+    Fetches data from the target router by running arp-a
+
+    Returns:
+        list: each line from stdout from
+    """
+    cerebro_data = get_cerebro_data()
     ssh = paramiko.SSHClient()
     ssh.load_system_host_keys()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(CEREBRO['address'], CEREBRO['port'], CEREBRO['username'],
-                CEREBRO['password'])
+    ssh.connect(cerebro_data['address'], cerebro_data['port'],
+                cerebro_data['username'],
+                cerebro_data['password'])
     (ssh_stdin, ssh_stdout, ssh_stderr) = ssh.exec_command("arp -a")
     return [entry for entry in ssh_stdout]
 
 
 def update():
+    """
+    Processes update, fetching data from the router and writing to the database
+
+    Returns:
+        None:
+    """
+    _logger.info("Writing update")
     write_update(parse_update(fetch_router_data()))
 
 
 def write_update(parsed_data):  # pragma: no cover
-    SAIB = getSaibData()
-    connection = pymysql.connect(host=SAIB['address'],
-                                 user=SAIB['username'],
-                                 password=SAIB['password'],
-                                 db=SAIB['database'],
-                                 charset='utf8mb4',
-                                 cursorclass=pymysql.cursors.DictCursor)
+    """
+    Writes the parsed data to the database
+
+    Args:
+        parsed_data(list): data
+
+    Returns:
+        None
+    """
+    _logger.debug("Writing update with parsed_data")
+    connection = get_saib_connection()
     try:
         with connection.cursor() as cursor:
             for item in parsed_data:
@@ -115,6 +177,45 @@ def write_update(parsed_data):  # pragma: no cover
                 cursor.execute(sql,
                                (item["ip"], item["mac_address"], item["name"]))
                 connection.commit()
+            _logger.debug("Running %s" % sql)
+    finally:
+        connection.close()
+
+
+def get_saib_connection():
+    """
+    Attempts to get a connection to Saib
+
+    Returns:
+        obj: live connection to saib
+
+    """
+    _logger.debug("Getting saib connection")
+    saib_data = get_saib_data()
+    connection = pymysql.connect(host=saib_data['address'],
+                                 user=saib_data['username'],
+                                 password=saib_data['password'],
+                                 db=saib_data['database'],
+                                 charset='utf8mb4',
+                                 cursorclass=pymysql.cursors.DictCursor)
+    return connection
+
+
+def update_mac_to_name_entries():
+    """Updates the mac_to_name table with new entries from the log
+    """
+    _logger.debug("Updating mac_to_name table")
+    connection = get_saib_connection().cursor()
+    try:
+        with connection.cursor() as cursor:
+            sql = '''
+                INSERT INTO mac_to_name (mac_address)
+                SELECT DISTINCT(mac_address) FROM log_in_range
+                WHERE mac_address NOT IN (SELECT mac_address FROM mac_to_name)
+                '''
+            _logger.debug("Running %s" % sql)
+            cursor.execute(sql)
+            connection.commit()
     finally:
         connection.close()
 
@@ -133,11 +234,16 @@ def parse_args(args):
     parser.add_argument(
         '--version',
         action='version',
-        version='tracker {ver}'.format(ver=__version__))
+        version='saib {ver}'.format(ver=__version__))
     parser.add_argument(
         '-u',
         '--update',
         help="Fetches updated info and posts to persistence",
+        action='store_true')
+    parser.add_argument(
+        '-um',
+        '--update-mac',
+        help="Updates the mac_to_name table with new mac_addresses from the log",
         action='store_true')
     parser.add_argument(
         '-v',
